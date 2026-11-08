@@ -1,0 +1,17 @@
+node_modules
+.next
+.env
+.env.local
+src/generated
+*.tsbuildinfo
+next-env.d.ts
+/tests/output
+
+# Variables locales et journaux
+.env.*.local
+*.log
+# Dossiers créés par les outils de déploiement / tests
+.netlify
+/coverage
+# Réglages personnels de Claude Code (launch.json reste partagé)
+.claude/settings.local.json

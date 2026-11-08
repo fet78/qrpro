@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: 11 18 32;
+  --muted: 91 101 119;
+  --faint: 148 156 172;
+  --line: 230 232 238;
+  --canvas: 248 249 251;
+  --surface: 255 255 255;
+  --brand: 29 78 216;
+  --brand-strong: 30 58 175;
+  --brand-soft: 238 243 255;
+  --success: 21 128 61;
+  --success-soft: 236 253 243;
+  --warn: 180 83 9;
+  --warn-soft: 255 247 237;
+  --danger: 185 28 28;
+  --danger-soft: 254 242 242;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-canvas text-ink antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+::selection {
+  background: rgb(var(--brand) / 0.15);
+}
+
+@layer components {
+  .input {
+    @apply block w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[15px] text-ink shadow-[0_1px_0_rgb(15_23_42/0.02)] outline-none transition placeholder:text-faint focus:border-brand/60 focus:shadow-ring disabled:bg-canvas disabled:text-muted;
+  }
+  .label {
+    @apply mb-1.5 block text-[13px] font-medium text-ink;
+  }
+  .hint {
+    @apply mt-1.5 text-[12.5px] leading-snug text-muted;
+  }
+  .card {
+    @apply rounded-2xl border border-line bg-surface shadow-card;
+  }
+  .eyebrow {
+    @apply text-[12px] font-semibold uppercase tracking-[0.08em] text-brand;
+  }
+  .link {
+    @apply font-medium text-brand underline-offset-4 hover:underline;
+  }
+}
+
+/* Aperçu SVG des étiquettes : rendu net, ombre « autocollant ». */
+.label-svg svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Polices de l'éditeur d'étiquettes (aperçu dans les menus ; le rendu des étiquettes utilise les contours). */
+@font-face { font-family: "qrp-inter"; src: url("/fonts/Inter_400Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "qrp-inter"; src: url("/fonts/Inter_700Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "qrp-montserrat"; src: url("/fonts/Montserrat_500Medium.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "qrp-montserrat"; src: url("/fonts/Montserrat_800ExtraBold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "qrp-spacegrotesk"; src: url("/fonts/SpaceGrotesk_400Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "qrp-spacegrotesk"; src: url("/fonts/SpaceGrotesk_700Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "qrp-oswald"; src: url("/fonts/Oswald_400Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "qrp-oswald"; src: url("/fonts/Oswald_700Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "qrp-bebas"; src: url("/fonts/BebasNeue_400Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "qrp-robotoslab"; src: url("/fonts/RobotoSlab_400Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "qrp-robotoslab"; src: url("/fonts/RobotoSlab_700Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "qrp-playfair"; src: url("/fonts/PlayfairDisplay_400Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "qrp-playfair"; src: url("/fonts/PlayfairDisplay_700Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }

@@ -1,0 +1,2 @@
+Polices sous licence SIL Open Font License 1.1 (usage commercial et intégration autorisés) :
+Inter, Montserrat, Oswald, Playfair Display, Roboto Slab, Space Grotesk, Bebas Neue — fichiers issus de Google Fonts (paquets @expo-google-fonts).

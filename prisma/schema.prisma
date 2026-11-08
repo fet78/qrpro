@@ -1,0 +1,530 @@
+// QR Pro — schéma PostgreSQL
+//
+// Un professionnel = un User (rôle PRO) + une Business (sa page publique).
+// Chaque étiquette porte un QrCode unique : https://<domaine>/p/<slug>/<code>.
+// Le QR ne contient QUE cette URL : la page se met à jour sans changer les étiquettes.
+// Le slug est figé dès qu'un premier code existe (les étiquettes déjà imprimées restent valables).
+//
+// Accès : toute donnée métier porte un businessId. Le serveur résout la Business à partir
+// de la session (jamais d'un identifiant envoyé par le navigateur) : voir src/server/auth.
+// Montants : centimes TTC en entiers (jamais de float).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  PRO
+  ADMIN
+}
+
+enum LabelFormat {
+  F40X40
+  F50X50
+  F60X40
+  F70X50
+  F90X60
+}
+
+enum OrderKind {
+  /// Offre QR Pro seule (numérique, paiement unique).
+  ACTIVATION
+  /// Étiquettes imprimées et livrées (avec l'offre QR Pro si le compte n'est pas encore activé).
+  PRINT
+  /// Ancienne offre (packs de crédits), conservée pour l'historique.
+  DIGITAL_PACK
+}
+
+enum OrderStatus {
+  EN_ATTENTE_PAIEMENT
+  RECUE
+  EN_ATTENTE_VALIDATION
+  EN_IMPRESSION
+  EXPEDIEE
+  LIVREE
+  TERMINEE
+  ANNULEE
+}
+
+enum TicketStatus {
+  OUVERT
+  REPONDU
+  FERME
+}
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  passwordHash   String
+  role           Role            @default(PRO)
+  disabledAt     DateTime?
+  createdAt      DateTime        @default(now())
+  lastLoginAt    DateTime?
+  sessions       Session[]
+  passwordResets PasswordReset[]
+  business       Business?
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+}
+
+model PasswordReset {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+/// Compteurs anti-abus (connexion, inscription, formulaires publics). Clés déjà hachées.
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+}
+
+model Business {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slug        String   @unique
+  name        String
+  trade       String   @default("")
+  phone       String   @default("")
+  email       String   @default("")
+  address     String   @default("")
+  postalCode  String   @default("")
+  city        String   @default("")
+  zone        String   @default("")
+  description String   @default("")
+  website     String   @default("")
+  /// 7 jours (lundi → dimanche) : { open: boolean, from: "08:00", to: "18:00", note?: string }
+  hours       Json?
+  hoursNote   String   @default("")
+  emergency   String   @default("")
+  accent      String   @default("bleu")
+  tipsEnabled Boolean  @default(false)
+  showRequestForm Boolean @default(true)
+  /// Vitrine publique : style, sections (ordre, visibilité), boutons, liens, avis Google, certifications…
+  /// Validée par src/lib/page/config.ts.
+  page        Json?
+  /// Préférences de notification des nouvelles demandes (src/lib/notify/prefs.ts).
+  notify      Json?
+
+  logo        Bytes?
+  logoWidth   Int?
+  logoHeight  Int?
+  logoVersion Int      @default(0)
+
+  /// Offre QR Pro active (payée ou offerte) : page en ligne, QR code et fichiers d'impression illimités.
+  activatedAt DateTime?
+  /// « paiement » ou « offert » (activation manuelle par l'administrateur).
+  activationSource String @default("")
+
+  /// Coordonnées de facturation (pré-remplies à la commande suivante).
+  billName    String   @default("")
+  billLine1   String   @default("")
+  billLine2   String   @default("")
+  billPostal  String   @default("")
+  billCity    String   @default("")
+  billSiret   String   @default("")
+
+  shipName    String   @default("")
+  shipLine1   String   @default("")
+  shipLine2   String   @default("")
+  shipPostal  String   @default("")
+  shipCity    String   @default("")
+  shipPhone   String   @default("")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  services      Service[]
+  tips          Tip[]
+  design        LabelDesign?
+  batches       Batch[]
+  codes         QrCode[]
+  orders        Order[]
+  tickets       SupportTicket[]
+  interventions InterventionRequest[]
+  photos        Photo[]
+  events        PageEvent[]
+  pushSubscriptions PushSubscription[]
+}
+
+/// Photo de réalisation (galerie de la page publique). JPEG recompressé dans le navigateur, revérifié ici.
+model Photo {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  data       Bytes
+  mime       String   @default("image/jpeg")
+  width      Int
+  height     Int
+  caption    String   @default("")
+  /// gallery = galerie de la vitrine ; label = image importée dans l'éditeur d'étiquettes.
+  usage      String   @default("gallery")
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([businessId])
+}
+
+/// Statistiques de la vitrine (aucune donnée personnelle : ni IP, ni cookie, ni identifiant).
+model PageEvent {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  action     String
+  withCode   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, createdAt])
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  title       String
+  description String   @default("")
+  /// Indication de prix facultative (« à partir de 120 € », « sur devis »).
+  price       String   @default("")
+  position    Int      @default(0)
+
+  @@index([businessId])
+}
+
+model Tip {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  title      String
+  body       String   @default("")
+  url        String   @default("")
+  position   Int      @default(0)
+
+  @@index([businessId])
+}
+
+/// Modèles d'étiquettes. Le rendu est dans le code (src/lib/labels), l'administration en règle le reste.
+model Template {
+  key            String  @id
+  name           String
+  description    String  @default("")
+  active         Boolean @default(true)
+  position       Int     @default(0)
+  defaultAccent  String  @default("bleu")
+  defaultHeadline String @default("Scannez pour nous contacter")
+}
+
+model LabelDesign {
+  businessId  String      @id
+  business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  templateKey String      @default("classique")
+  format      LabelFormat @default(F50X50)
+  accent      String      @default("bleu")
+  headline    String      @default("Scannez pour nous contacter")
+  subline     String      @default("Entretien · Dépannage")
+  showLogo    Boolean     @default(true)
+  showPhone   Boolean     @default(true)
+  /// Document de l'éditeur v2 (calques, palette, polices). Les colonnes ci-dessus = ancien format v1.
+  doc         Json?
+  validatedAt DateTime?
+  updatedAt   DateTime    @updatedAt
+}
+
+/// Une planche générée (numérique) ou un lot imprimé (commande physique).
+model Batch {
+  id         String      @id @default(cuid())
+  businessId String
+  business   Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  count      Int
+  format     LabelFormat
+  /// Copie du design au moment de la génération : retélécharger donne la même planche.
+  design     Json
+  printed    Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  codes      QrCode[]
+  order      Order?
+
+  @@index([businessId])
+}
+
+model QrCode {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  businessId    String
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  /// Lot d'origine (anciennes étiquettes numérotées) ; null pour le QR code principal.
+  batchId       String?
+  batch         Batch?    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  /// QR code principal du professionnel : un seul par compte, imprimé sur toutes ses étiquettes.
+  main          Boolean   @default(false)
+  position      Int       @default(0)
+  createdAt     DateTime  @default(now())
+  scanCount     Int       @default(0)
+  lastScanAt    DateTime?
+
+  /// Informations d'installation (facultatives) affichées quand on scanne CETTE étiquette.
+  label         String    @default("")
+  equipment     String    @default("")
+  brand         String    @default("")
+  model         String    @default("")
+  installedAt   DateTime?
+  lastServiceAt DateTime?
+  nextServiceAt DateTime?
+  publicNote    String    @default("")
+  showInstall   Boolean   @default(false)
+
+  interventions InterventionRequest[]
+
+  @@index([businessId])
+  @@index([batchId])
+}
+
+/// Tarif dégressif des étiquettes imprimées : prix TOTAL TTC, impression et livraison comprises.
+model PrintTier {
+  id         String  @id @default(cuid())
+  quantity   Int     @unique
+  priceCents Int
+  active     Boolean @default(true)
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  number          Int         @unique @default(autoincrement())
+  businessId      String?
+  business        Business?   @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  kind            OrderKind
+  status          OrderStatus @default(EN_ATTENTE_PAIEMENT)
+
+  /// Instantanés : la commande reste lisible même si le pack, le tarif ou le compte change.
+  customerName    String
+  customerEmail   String
+  itemLabel       String
+  /// Lignes facturées (instantané) : [{ label, detail, quantity, unitCents, totalCents }].
+  lines           Json?
+  /// La commande active l'offre QR Pro.
+  includesActivation Boolean @default(false)
+  /// Facture : numéro chronologique attribué au paiement (ex. FA-2026-0001).
+  invoiceNumber   String?     @unique
+  billName        String      @default("")
+  billLine1       String      @default("")
+  billLine2       String      @default("")
+  billPostal      String      @default("")
+  billCity        String      @default("")
+  billSiret       String      @default("")
+  credits         Int?
+  quantity        Int?
+  format          LabelFormat?
+  design          Json?
+  unitPriceCents  Int
+  subtotalCents   Int
+  shippingCents   Int         @default(0)
+  totalCents      Int
+  shippingLabel   String      @default("")
+  shipName        String      @default("")
+  shipLine1       String      @default("")
+  shipLine2       String      @default("")
+  shipPostal      String      @default("")
+  shipCity        String      @default("")
+  shipPhone       String      @default("")
+
+  stripeSessionId String?     @unique
+  paymentRef      String?
+  paidAt          DateTime?
+  carrier         String      @default("")
+  trackingNumber  String      @default("")
+  adminNote       String      @default("")
+  batchId         String?     @unique
+  batch           Batch?      @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  events          OrderEvent[]
+
+  @@index([businessId])
+  @@index([status])
+}
+
+model OrderEvent {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  note      String      @default("")
+  createdAt DateTime    @default(now())
+
+  @@index([orderId])
+}
+
+model SupportTicket {
+  id         String           @id @default(cuid())
+  businessId String
+  business   Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  subject    String
+  status     TicketStatus     @default(OUVERT)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  messages   SupportMessage[]
+
+  @@index([businessId])
+}
+
+model SupportMessage {
+  id        String        @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromAdmin Boolean       @default(false)
+  body      String
+  createdAt DateTime      @default(now())
+
+  @@index([ticketId])
+}
+
+/// Demande envoyée par un client final depuis la page publique.
+model InterventionRequest {
+  id         String    @id @default(cuid())
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  qrCodeId   String?
+  qrCode     QrCode?   @relation(fields: [qrCodeId], references: [id], onDelete: SetNull)
+  name       String
+  phone      String
+  email      String    @default("")
+  address    String    @default("")
+  message    String
+  /// panne | entretien | devis | autre
+  kind       String    @default("autre")
+  /// urgent | semaine | flexible
+  urgency    String    @default("flexible")
+  /// appel | sms | email
+  contactPref String   @default("appel")
+  /// Code postal et ville de l'intervention (l'adresse détaillée est dans `address`).
+  postalCode String    @default("")
+  city       String    @default("")
+  /// Problème choisi dans la liste du pro (« Chaudière en panne »…), ou vide.
+  problem    String    @default("")
+  /// Disponibilités du client (créneaux cochés + précision libre).
+  availability String  @default("")
+  /// nouvelle | en_cours | planifiee | terminee | annulee
+  status     String    @default("nouvelle")
+  scheduledAt DateTime?
+  /// Note interne du professionnel (jamais visible du client).
+  note       String    @default("")
+  /// Première consultation par le pro.
+  readAt     DateTime?
+  /// Clé d'idempotence générée par le formulaire : un double envoi ne crée jamais deux demandes.
+  clientKey  String?   @unique
+  createdAt  DateTime  @default(now())
+  handledAt  DateTime?
+  photos     RequestPhoto[]
+  notifications NotificationLog[]
+
+  @@index([businessId])
+  @@index([businessId, status])
+}
+
+/// File d'envoi des notifications (une ligne par demande et par canal) : rien n'est perdu, rien n'est envoyé deux fois.
+model NotificationLog {
+  id            String    @id @default(cuid())
+  requestId     String
+  request       InterventionRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  businessId    String
+  /// email | sms | whatsapp | push | secours
+  channel       String
+  /// Destinataire au moment de l'envoi (email ou numéro) ; « appareils » pour le push.
+  recipient     String    @default("")
+  /// en_attente | envoi | envoye | echec | ignore
+  status        String    @default("en_attente")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  lastError     String    @default("")
+  providerId    String    @default("")
+  sentAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@unique([requestId, channel])
+  @@index([status, nextAttemptAt])
+  @@index([businessId, createdAt])
+}
+
+/// Abonnement aux notifications web (navigateur du téléphone ou de l'ordinateur du pro).
+model PushSubscription {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  label      String   @default("")
+  createdAt  DateTime @default(now())
+  lastOkAt   DateTime?
+
+  @@index([businessId])
+}
+
+/// Photo jointe par le client final (ex. message d'erreur de la chaudière). Visible du seul professionnel.
+/// Pièce jointe d'une demande : photo (JPEG) ou document (PDF).
+model RequestPhoto {
+  id        String              @id @default(cuid())
+  requestId String
+  request   InterventionRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  data      Bytes
+  mime      String              @default("image/jpeg")
+  name      String              @default("")
+  size      Int                 @default(0)
+  width     Int                 @default(0)
+  height    Int                 @default(0)
+  createdAt DateTime            @default(now())
+
+  @@index([requestId])
+}
+
+/// Événements Stripe déjà traités (un webhook peut être livré plusieurs fois).
+model ProcessedEvent {
+  id        String   @id
+  createdAt DateTime @default(now())
+}
+
+/// Réglages de la marque et du commerce (une seule ligne, id = "main").
+model Setting {
+  id            String  @id @default("main")
+  brandName     String  @default("QR Pro")
+  tagline       String  @default("Votre QR code professionnel, prêt à être installé sur vos équipements.")
+  contactEmail  String  @default("")
+  contactPhone  String  @default("")
+  legalName     String  @default("")
+  legalAddress  String  @default("")
+  siret         String  @default("")
+  vatMention    String  @default("TVA non applicable, art. 293 B du CGI")
+  /// Prix de l'offre QR Pro (paiement unique, TTC).
+  digitalPriceCents Int @default(3900)
+  printEnabled  Boolean @default(true)
+  /// Dernier numéro de facture attribué (séquence continue, jamais réutilisée).
+  invoiceSeq    Int     @default(0)
+}
+
+/// Emails envoyés par jour (UTC) : la plateforme reste dans l'offre gratuite de Resend (aucun dépassement facturé).
+model EmailUsage {
+  day       String   @id
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+}

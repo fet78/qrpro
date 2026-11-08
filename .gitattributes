@@ -1,0 +1,7 @@
+# Fins de ligne normalisées (le build tourne sous Linux chez l hébergeur)
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ttf binary
+*.pdf binary
+*.ico binary
