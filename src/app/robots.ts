@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  */
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: [{ userAgent: "*", allow: "/", disallow: ["/espace", "/admin", "/api/", "/d/", "/q/", "/connexion", "/inscription", "/mot-de-passe-oublie", "/reinitialiser"] }],
+    rules: [{ userAgent: "*", allow: "/", disallow: ["/espace", "/admin", "/api/", "/d/", "/q/", "/connexion", "/inscription", "/mot-de-passe-oublie", "/reinitialiser", "/verifier-email"] }],
     sitemap: `${appUrl()}/sitemap.xml`,
   };
 }

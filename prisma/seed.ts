@@ -40,13 +40,14 @@ async function main() {
 
   if (process.env.NODE_ENV !== "production") {
     const admin = await db.user.findUnique({ where: { email: "admin@qrpro.test" } });
-    if (!admin) await db.user.create({ data: { email: "admin@qrpro.test", role: "ADMIN", passwordHash: await hashPassword("Admin-QRPro-2026!") } });
+    if (!admin) await db.user.create({ data: { email: "admin@qrpro.test", role: "ADMIN", emailVerifiedAt: new Date(), passwordHash: await hashPassword("Admin-QRPro-2026!") } });
 
     const demo = await db.user.findUnique({ where: { email: "demo@qrpro.test" } });
     if (!demo) {
       await db.user.create({
         data: {
           email: "demo@qrpro.test",
+          emailVerifiedAt: new Date(),
           passwordHash: await hashPassword("Demo-QRPro-2026!"),
           business: {
             create: {

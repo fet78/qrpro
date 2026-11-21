@@ -6,6 +6,7 @@ import { db } from "@/server/db";
 import { hashPassword, verifyPassword, burnPasswordTime } from "@/server/auth/password";
 import { openSession, closeSession, revokeAllSessions } from "@/server/auth/session";
 import { newToken, hashToken } from "@/server/auth/tokens";
+import { sendVerificationEmail } from "@/server/auth/email-verification";
 import { rateLimit, clientIp } from "@/server/rate-limit";
 import { availableSlug } from "@/server/business";
 import { defaultDoc } from "@/lib/labels/content";
@@ -53,6 +54,8 @@ export async function signup(_: ActionResult, fd: FormData): Promise<ActionResul
     },
   });
   await openSession(user.id);
+  // Un échec d'envoi ne bloque pas l'inscription : l'espace pro permet de renvoyer le lien.
+  await sendVerificationEmail(user.id, mail).catch((e) => console.error("[verification email]", e));
   void notifyAdmin(`Nouveau compte : ${company}`, `${company} (${mail}) vient de créer un compte.\n\n${appUrl()}/admin/clients`);
   redirect("/espace?bienvenue=1");
 }

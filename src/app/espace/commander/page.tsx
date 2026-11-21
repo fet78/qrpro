@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function OrderPage({ searchParams }: { searchParams: Promise<{ quantite?: string }> }) {
   const user = await requirePro();
   const { quantite } = await searchParams;
-  const [s, tiers, ctx, b, activation] = await Promise.all([
+  const [s, tiers, ctx, b, activation, account] = await Promise.all([
     getSettings(),
     db.printTier.findMany({ where: { active: true }, orderBy: { quantity: "asc" } }),
     labelContext(user.businessId),
@@ -30,7 +30,9 @@ export default async function OrderPage({ searchParams }: { searchParams: Promis
       },
     }),
     db.business.findUniqueOrThrow({ where: { id: user.businessId }, select: { activatedAt: true } }),
+    db.user.findUniqueOrThrow({ where: { id: user.id }, select: { emailVerifiedAt: true } }),
   ]);
+  const emailOk = !!account.emailVerifiedAt;
   const canPay = paymentsAvailable();
   const printOn = s.printEnabled && tiers.length > 0;
   const preselect = tiers.find((t) => String(t.quantity) === quantite)?.id;
@@ -42,12 +44,15 @@ export default async function OrderPage({ searchParams }: { searchParams: Promis
         description="Une offre unique pour votre QR code et votre page, et si vous le souhaitez, vos étiquettes imprimées et livrées. Le prix affiché est le prix payé."
       />
       {!canPay ? <Notice tone="warn" className="mb-6">Le paiement en ligne n&apos;est pas encore activé sur ce site. Les commandes seront possibles dès sa mise en service.</Notice> : null}
+      {canPay && !emailOk ? (
+        <Notice tone="warn" className="mb-6">Confirmez d&apos;abord votre adresse email (lien envoyé à <b>{user.email}</b>) : c&apos;est là que nous envoyons votre facture.</Notice>
+      ) : null}
       {paymentSimulated() ? (
         <Notice tone="warn" className="mb-6">Mode développement : Stripe n&apos;est pas configuré, le paiement sera <b>simulé</b> (aucun débit). Ce mode est désactivé en production.</Notice>
       ) : null}
 
       <Checkout
-        canPay={canPay}
+        canPay={canPay && emailOk}
         activated={!!ctx.activated}
         activatedOn={activation.activatedAt ? dateFr(activation.activatedAt) : null}
         digitalPriceCents={s.digitalPriceCents}

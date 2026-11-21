@@ -63,10 +63,13 @@ model User {
   passwordHash   String
   role           Role            @default(PRO)
   disabledAt     DateTime?
+  /// Adresse confirmée par le lien envoyé à l'inscription (ou au changement d'email).
+  emailVerifiedAt DateTime?
   createdAt      DateTime        @default(now())
   lastLoginAt    DateTime?
   sessions       Session[]
   passwordResets PasswordReset[]
+  emailVerifications EmailVerification[]
   business       Business?
 }
 
@@ -78,6 +81,20 @@ model Session {
   userAgent String?
   createdAt DateTime @default(now())
   expiresAt DateTime
+
+  @@index([userId])
+}
+
+/// Lien de confirmation d'adresse email (seule l'empreinte du jeton est stockée).
+model EmailVerification {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Adresse à confirmer : le lien ne vaut que si le compte a toujours cette adresse.
+  email     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   @@index([userId])
 }

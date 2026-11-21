@@ -53,6 +53,8 @@ const orderSchema = z
 export async function placeOrder(_: ActionResult, fd: FormData): Promise<ActionResult> {
   const user = await requirePro();
   if (!paymentsAvailable()) return fail("Le paiement en ligne n'est pas encore activé. Contactez le support.");
+  const account = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { emailVerifiedAt: true } });
+  if (!account.emailVerifiedAt) return fail("Confirmez votre adresse email avant de commander : c'est là que nous envoyons votre facture.");
   const keys = ["tierId", "billName", "billLine1", "billLine2", "billPostal", "billCity", "billSiret", "shipName", "shipLine1", "shipLine2", "shipPostal", "shipCity", "shipPhone"];
   const parsed = orderSchema.safeParse({ ...Object.fromEntries(keys.map((k) => [k, str(fd, k)])), billSiret: str(fd, "billSiret").replace(/\s/g, ""), shipSame: bool(fd, "shipSame"), acceptCgv: bool(fd, "acceptCgv") });
   if (!parsed.success) return zodErrors(parsed.error);

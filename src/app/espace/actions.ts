@@ -18,6 +18,7 @@ import { parseDoc } from "@/lib/labels/doc";
 import { pageConfigSchema } from "@/lib/page/config";
 import { jpegSize, pngSize as pngSizeOf } from "@/lib/images";
 import { notifyAdmin } from "@/server/email";
+import { sendVerificationEmail } from "@/server/auth/email-verification";
 import { rateLimit } from "@/server/rate-limit";
 import { appUrl } from "@/lib/env";
 import { bool, done, fail, str, zodErrors, type ActionResult } from "@/lib/action";
@@ -338,9 +339,11 @@ export async function changeEmail(_: ActionResult, fd: FormData): Promise<Action
   if (parsed.data.email !== user.email && (await db.user.findUnique({ where: { email: parsed.data.email }, select: { id: true } }))) {
     return { ok: false, errors: { email: "Cet email est déjà utilisé par un autre compte." } };
   }
-  await db.user.update({ where: { id: user.id }, data: { email: parsed.data.email } });
+  if (parsed.data.email === user.email) return done("C'est déjà votre email de connexion.");
+  await db.user.update({ where: { id: user.id }, data: { email: parsed.data.email, emailVerifiedAt: null } });
+  await sendVerificationEmail(user.id, parsed.data.email).catch((e) => console.error("[verification email]", e));
   revalidatePath("/espace", "layout");
-  return done("Email de connexion modifié.");
+  return done("Email de connexion modifié. Un lien de confirmation vient d'être envoyé à la nouvelle adresse.");
 }
 
 export async function changePassword(_: ActionResult, fd: FormData): Promise<ActionResult> {

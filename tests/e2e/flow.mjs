@@ -38,6 +38,10 @@ async function signup(ctx, pro) {
   await page.check('input[name="accept"]');
   await page.click('button[type="submit"]');
   await page.waitForURL(/\/espace\?bienvenue=1/, { timeout: 90000 });
+  // Adresse non confirmée : bandeau visible, puis confirmation directe (mode développement sans email).
+  await page.locator('[data-testid="email-unverified"]').waitFor();
+  await page.click('[data-testid="dev-confirm-email"]');
+  await page.locator('[data-testid="email-unverified"]').waitFor({ state: "detached", timeout: 30000 });
   return page;
 }
 

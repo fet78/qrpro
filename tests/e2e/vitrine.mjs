@@ -45,6 +45,16 @@ try {
   await a.check('input[name="accept"]');
   await a.click('button[type="submit"]');
   await a.waitForURL(/bienvenue/);
+  // Commande refusée tant que l'adresse n'est pas confirmée ; un lien inconnu est refusé.
+  await go(a, `${BASE}/espace/commander`);
+  if (!(await a.getByText("Confirmez d'abord votre adresse email").isVisible())) throw new Error("commande non bloquée sans email confirmé");
+  await go(a, `${BASE}/verifier-email/lien-inconnu-0000000000000000`);
+  await a.locator('[data-testid="verify-invalid"]').waitFor();
+  await go(a, `${BASE}/espace`);
+  // Adresse non confirmée : bandeau visible, puis confirmation directe (mode développement sans email).
+  await a.locator('[data-testid="email-unverified"]').waitFor();
+  await a.click('[data-testid="dev-confirm-email"]');
+  await a.locator('[data-testid="email-unverified"]').waitFor({ state: "detached", timeout: 30000 });
   // Offre QR Pro activée (paiement simulé) : la page devient publique.
   await go(a, `${BASE}/espace/commander`);
   await a.fill("#billName", PRO.company);
