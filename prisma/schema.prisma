@@ -67,6 +67,8 @@ model User {
   emailVerifiedAt DateTime?
   createdAt      DateTime        @default(now())
   lastLoginAt    DateTime?
+  /// Avertissement envoyé avant suppression d'un compte d'essai inactif (purge RGPD).
+  inactivityWarnedAt DateTime?
   sessions       Session[]
   passwordResets PasswordReset[]
   emailVerifications EmailVerification[]
@@ -540,6 +542,8 @@ model Setting {
   printEnabled  Boolean @default(true)
   /// Dernier numéro de facture attribué (séquence continue, jamais réutilisée).
   invoiceSeq    Int     @default(0)
+  /// Dernière purge automatique des données anciennes (une fois par jour au plus).
+  lastPurgeAt   DateTime?
 }
 
 /// Emails envoyés par jour (UTC) : la plateforme reste dans l'offre gratuite de Resend (aucun dépassement facturé).
