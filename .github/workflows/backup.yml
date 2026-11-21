@@ -1,0 +1,71 @@
+# Sauvegarde quotidienne de la base PostgreSQL (l'offre gratuite de Prisma Postgres n'en fait pas).
+#
+# Secrets à créer dans GitHub (Settings → Secrets and variables → Actions) :
+#   BACKUP_DATABASE_URL  URL de connexion DIRECTE à la base (pas l'URL « pooled » de l'application)
+#   BACKUP_PASSPHRASE    phrase de passe longue qui chiffre la sauvegarde (à garder hors de GitHub)
+#
+# Chaque sauvegarde est chiffrée (GPG, AES-256) puis stockée 30 jours comme « artifact » de l'exécution.
+# Restauration : voir la section « Sauvegardes et reprise » du README.
+name: Sauvegarde de la base
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # tous les jours vers 3 h 17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Vérifier les secrets
+        env:
+          DB: ${{ secrets.BACKUP_DATABASE_URL }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$DB" ] || [ -z "$PASS" ]; then
+            echo "::error::Secrets BACKUP_DATABASE_URL et BACKUP_PASSPHRASE requis (voir l'en-tête du fichier)."
+            exit 1
+          fi
+
+      - name: Installer pg_dump (dernière version, compatible avec les serveurs plus anciens)
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          pg_dump --version
+
+      - name: Sauvegarder et chiffrer
+        env:
+          DB: ${{ secrets.BACKUP_DATABASE_URL }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          umask 077
+          name="qrpro-$(date -u +%Y-%m-%d)"
+          pg_dump "$DB" --no-owner --no-privileges -Fc -f "$name.dump"
+          # Contrôle : l'archive est lisible et contient les tables principales.
+          pg_restore --list "$name.dump" | grep -q 'TABLE DATA public "QrCode"'
+          pg_restore --list "$name.dump" | grep -q 'TABLE DATA public "Order"'
+          printf '%s' "$PASS" | gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 -o "$name.dump.gpg" "$name.dump"
+          shred -u "$name.dump"
+          ls -l "$name.dump.gpg"
+          echo "NAME=$name" >> "$GITHUB_ENV"
+
+      - name: Conserver la sauvegarde (30 jours)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ env.NAME }}.dump.gpg
+          retention-days: 30
+          if-no-files-found: error
