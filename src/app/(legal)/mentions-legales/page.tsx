@@ -19,7 +19,7 @@ export default async function LegalNotice() {
       </p>
       <p>Directeur de la publication : le représentant légal de l&apos;éditeur.</p>
       <h2>Hébergement</h2>
-      <p>Vercel Inc., 440 N Barranca Ave #4133, Covina, CA 91723, États-Unis — vercel.com. Base de données hébergée par le prestataire indiqué dans la politique de confidentialité.</p>
+      <p>Netlify, Inc., 101 2nd Street, Suite 575, San Francisco, CA 94105, États-Unis — netlify.com. Base de données : Prisma Postgres (Prisma Data, Inc.).</p>
       <h2>Site</h2>
       <p>Adresse : {appUrl()}. Les pages professionnelles publiées sous /p/ sont rédigées par les professionnels eux-mêmes, qui en sont responsables.</p>
     </>

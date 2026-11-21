@@ -1,0 +1,8 @@
+# Netlify détecte Next.js et applique son adaptateur officiel (fonctions + fichiers statiques).
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # Pas de télémétrie Next.js pendant le build.
+  NEXT_TELEMETRY_DISABLED = "1"

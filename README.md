@@ -11,9 +11,9 @@ Le client final scanne l'étiquette et ouvre la page du professionnel (appel en 
 
 | Besoin | Choix | Raison |
 |---|---|---|
-| Application | **Next.js 16** (React 19, TypeScript, App Router) | Une seule base de code pour la landing, l'espace pro, l'admin, les pages publiques **rendues côté serveur** (rapides au scan) et l'API (PDF, Stripe). Déploiement natif sur Vercel. |
+| Application | **Next.js 16** (React 19, TypeScript, App Router) | Une seule base de code pour la landing, l'espace pro, l'admin, les pages publiques **rendues côté serveur** (rapides au scan) et l'API (PDF, Stripe). Hébergé sur Netlify (adaptateur Next.js officiel). |
 | Style | **Tailwind CSS 3** | Tailwind 4 et Turbopack utilisent des binaires natifs bloqués par Smart App Control sur ce poste. |
-| Base de données | **PostgreSQL** via **Prisma 7** | Schéma typé, migrations versionnées. En production : la base Postgres de **Supabase** (ou Neon). |
+| Base de données | **PostgreSQL** via **Prisma 7** | Schéma typé, migrations versionnées. En production : **Prisma Postgres** (offre gratuite, connexion « pooled »). |
 | Authentification | Sessions maison | Mot de passe haché en **scrypt**, jeton de session aléatoire dont seule l'empreinte HMAC est stockée, cookie `HttpOnly`/`SameSite=Lax`/`__Host-`, limitation des tentatives en base, réinitialisation par lien à usage unique (1 h). |
 | QR codes | **qrcode** (norme ISO 18004) + **jsQR** | Correction d'erreur Q (25 %), zone blanche de 4 modules, toujours noir sur blanc. **Chaque export est relu par un décodeur indépendant** avant d'être livré. |
 | Éditeur d'étiquettes | Moteur maison + **fontkit** + **Lucide** | Document à calques en millimètres. Le texte est converti en contours vectoriels : l'aperçu, le PNG, le SVG et le PDF sont strictement identiques, sans dépendre des polices de l'imprimeur. 7 polices libres (SIL OFL) dans `public/fonts`. |
@@ -21,7 +21,7 @@ Le client final scanne l'étiquette et ouvre la page du professionnel (appel en 
 | Paiement | **Stripe Checkout** | Page de paiement hébergée par Stripe, webhook signé et idempotent, vérification du montant. |
 | Emails | **Resend** (API HTTP) | Confirmation de commande, statuts, demandes d'intervention, réinitialisation, support. |
 
-**Pourquoi pas Supabase Auth et la RLS Supabase ?** Le navigateur ne parle jamais à la base : toutes les lectures et écritures passent par le serveur Next.js, qui résout l'entreprise **depuis la session**, jamais depuis un identifiant envoyé par le navigateur (`requirePro()` / `requireAdmin()`, appelés dans chaque page **et** chaque action). Supabase sert donc uniquement d'hébergeur PostgreSQL, et son API REST est **fermée** par `prisma/supabase-lockdown.sql` (RLS activée sur toutes les tables, sans politique). On ne désactive aucune protection de Supabase : on les renforce.
+**Accès aux données** : le navigateur ne parle jamais à la base. Toutes les lectures et écritures passent par le serveur Next.js, qui résout l'entreprise **depuis la session**, jamais depuis un identifiant envoyé par le navigateur (`requirePro()` / `requireAdmin()`, appelés dans chaque page **et** chaque action). Prisma Postgres n'expose aucune API publique : seule l'application s'y connecte. (`prisma/supabase-lockdown.sql` ne sert que si la base est un jour hébergée chez Supabase : il ferme son API REST.)
 
 ### Les QR codes
 
@@ -178,13 +178,13 @@ Ouvrir http://localhost:3500.
 npm run test
 ```
 
-Lance les tests unitaires (673) : chaque modèle dans chacun de ses formats, avec et sans logo, avec et sans photo, avec des noms réalistes et des textes très longs, plus les règles imposées au QR, l'assistant de correction, l'adaptation de format et le PDF A4.
+Lance les tests unitaires (686) : chaque modèle dans chacun de ses formats, avec et sans logo, avec et sans photo, avec des noms réalistes et des textes très longs, plus les règles imposées au QR, l'assistant de correction, l'adaptation de format et le PDF A4.
 
 ```bash
 npm run test:e2e
 ```
 
-Lance le parcours complet dans Edge, serveur de développement démarré : 19 étapes, dont le cloisonnement entre deux pros, l'administration et l'affichage mobile.
+Lance le parcours complet dans Edge, serveur de développement démarré : 20 étapes, dont le cloisonnement entre deux pros, l'administration et l'affichage mobile.
 
 ```bash
 npm run test:print
@@ -192,11 +192,13 @@ npm run test:print
 
 Rastérise la dernière planche à 300 puis 150 dpi (Python + PyMuPDF) et relit chaque QR, comme après une impression.
 
-## Mise en production (Vercel + Supabase)
+## Mise en production (Netlify + Prisma Postgres)
+
+Les deux offres gratuites suffisent pour démarrer. Limites à surveiller (à la date d'écriture) : Netlify Free **300 crédits / mois** (le site est mis en pause s'ils sont dépassés, rien n'est facturé sans votre accord), fonctions limitées à 60 s et à des envois d'environ 4,5 Mo (l'application s'y tient) ; Prisma Postgres Free **200 000 opérations / mois**, 2 Go, **sans sauvegarde** (d'où la sauvegarde GitHub ci-dessous).
 
 1. **Domaine** : choisissez-le avant tout. `APP_URL` est imprimé dans chaque QR et **ne doit plus changer**. Les étiquettes générées en local contiennent `localhost` et ne servent qu'aux tests.
-2. **Supabase** : créez un projet (région UE, Paris ou Francfort). Récupérez les deux URL de connexion : « Transaction pooler » pour `DATABASE_URL`, « Session pooler » pour les migrations.
-3. **Migrations**, depuis votre poste, avec l'URL Session pooler dans `DATABASE_URL` :
+2. **Prisma Postgres** (console.prisma.io) : créez une base dans la **même région que les fonctions Netlify** (`us-east-1`, États-Unis Est) pour des pages rapides. Récupérez les deux URL : **pooled** (hôte `pooled.db.prisma.io`) pour l'application, **directe** (hôte `db.prisma.io`) pour les migrations et les sauvegardes.
+3. **Migrations**, depuis votre poste, avec l'URL **directe** dans `DATABASE_URL` (le temps de la commande) :
 
    ```bash
    npm run db:deploy
@@ -206,30 +208,38 @@ Rastérise la dernière planche à 300 puis 150 dpi (Python + PyMuPDF) et relit 
    npm run db:seed
    ```
 
-   Ensuite, exécutez `prisma/supabase-lockdown.sql` dans le SQL Editor de Supabase. En production, le seed ne crée **aucun** compte de test.
+   En production, le seed ne crée **aucun** compte de test. À refaire après chaque mise à jour qui ajoute une migration (dossier `prisma/migrations`), **avant** de publier le nouveau code.
 4. **Administrateur** :
 
    ```bash
    npm run admin:create -- vous@domaine.fr "un-mot-de-passe-long"
    ```
 
-5. **Vercel** : importez le dépôt GitHub et renseignez les variables de `.env.example` (`DATABASE_URL` = Transaction pooler, `DATABASE_POOL_MAX=3`, `APP_URL`, `AUTH_SECRET`, Stripe, Resend). Le build lance `prisma generate` automatiquement.
+5. **Netlify** : « Add new project » → importez le dépôt GitHub (branche `main`). Le build (`npm run build`, Node 22) est lu dans `netlify.toml` ; `npm install` lance `prisma generate`. Renseignez les variables de `.env.example` : `DATABASE_URL` = URL **pooled**, `DATABASE_POOL_MAX` vide (1 connexion par fonction, automatiquement), `APP_URL`, `AUTH_SECRET`, Stripe, Resend, clés VAPID, `CRON_SECRET`. Branchez ensuite votre domaine (Domain management) : le HTTPS est automatique.
 6. **Stripe** : créez un endpoint webhook `https://votre-domaine.fr/api/stripe/webhook` avec les événements `checkout.session.completed`, `checkout.session.async_payment_succeeded` et `checkout.session.expired`. Copiez son secret dans `STRIPE_WEBHOOK_SECRET`. Testez avec les cartes de test Stripe avant de passer aux clés `sk_live_`.
-7. **Resend** : vérifiez votre domaine (DNS), puis renseignez `RESEND_API_KEY` et `EMAIL_FROM`.
-8. **Réglages** (dans l'admin) : raison sociale, SIRET, adresse, email de contact, mention TVA. Les pages légales signalent en orange ce qui manque. **Faites relire les CGV** : ce sont des modèles.
+7. **Resend** : vérifiez votre domaine (DNS), puis renseignez `RESEND_API_KEY` et `EMAIL_FROM`. Sans Resend, aucun email ne part (factures, confirmation d'adresse, mot de passe oublié) : indispensable avant de vendre.
+8. **Tâche planifiée** (cron-job.org, gratuit) : toutes les 10 minutes, `GET https://votre-domaine.fr/api/cron/notifications` avec l'en-tête `Authorization: Bearer <CRON_SECRET>`. Elle reprend les notifications en échec et lance, une fois par jour, la **purge RGPD** (durées dans `src/lib/retention.ts`, reprises dans la politique de confidentialité).
+9. **Réglages** (dans l'admin) : raison sociale, SIRET, adresse, email de contact, mention TVA. Les pages légales signalent en orange ce qui manque. **Faites relire les CGV** : ce sont des modèles. Si vous les modifiez, changez `CGV_VERSION` (`src/lib/legal.ts`) : chaque commande enregistre la version acceptée.
 
 L'admin, page **Réglages → Services connectés**, indique ce qui est réellement configuré.
 
+**Données et RGPD** : avec ces offres, les fonctions Netlify et la base tournent aux États-Unis (`us-east`). C'est permis avec les clauses contractuelles des prestataires, et c'est indiqué dans la politique de confidentialité. Pour héberger la base en Europe, choisissez la région `eu-central-1` (pages un peu plus lentes).
+
 ### Sauvegardes et reprise
 
-- Supabase fait une sauvegarde quotidienne automatique (7 jours sur l'offre Pro, avec restauration à un instant donné en option). L'offre gratuite ne garantit pas les sauvegardes : prévoyez l'offre Pro avant de vendre.
-- En complément, faites un export régulier depuis votre poste :
+- **Sauvegarde quotidienne automatique** par GitHub Actions (`.github/workflows/backup.yml`) : `pg_dump` vérifié, chiffré (GPG AES-256), conservé 30 jours dans l'onglet **Actions** du dépôt. Pour l'activer, créez dans GitHub (Settings → Secrets and variables → Actions) les secrets `BACKUP_DATABASE_URL` (URL **directe**) et `BACKUP_PASSPHRASE` (phrase longue, notée **hors** de GitHub : sans elle, les sauvegardes sont illisibles). Lancez-la une première fois à la main (Actions → « Sauvegarde de la base » → Run workflow) et vérifiez qu'elle passe au vert. GitHub suspend les tâches planifiées d'un dépôt sans activité pendant 60 jours : un commit ou un lancement manuel les réactive.
+- **Restauration** : téléchargez l'artifact voulu (un `.zip` contenant `qrpro-AAAA-MM-JJ.dump.gpg`), puis :
 
   ```bash
-  pg_dump "URL_SESSION_POOLER" --no-owner -Fc -f sauvegarde-qrpro.dump
+  gpg --decrypt -o sauvegarde.dump qrpro-AAAA-MM-JJ.dump.gpg
   ```
 
-- Restauration : `pg_restore --no-owner -d "URL" sauvegarde-qrpro.dump`. Les étiquettes imprimées ne dépendent que des codes en base (table `QrCode`) et du domaine : tant que les deux sont restaurés, elles refonctionnent.
+  ```bash
+  pg_restore --no-owner --no-privileges --clean --if-exists -d "URL_DIRECTE" sauvegarde.dump
+  ```
+
+  Entraînez-vous une fois sur une base vide (une seconde base Prisma Postgres gratuite) avant d'en avoir besoin.
+- Les étiquettes imprimées ne dépendent que des codes en base (table `QrCode`) et du domaine : tant que les deux sont restaurés, elles refonctionnent.
 
 ## Évolutions prévues par l'architecture (non développées)
 
@@ -239,13 +249,14 @@ L'admin, page **Réglages → Services connectés**, indique ce qui est réellem
 ## Structure
 
 ```
-prisma/              schéma, migrations, seed, verrouillage Supabase
+prisma/              schéma, migrations, seed (+ verrouillage Supabase, facultatif)
 src/lib/labels/      moteur d'étiquettes (formats, QR, textes, modèles, SVG, PDF, vérification)
-src/server/          base, sessions, anti-abus, emails, commandes/Stripe, réglages
-src/app/(auth)       inscription, connexion, mot de passe
+src/server/          base, sessions, anti-abus, emails, commandes/Stripe, réglages, purge RGPD
+src/app/(auth)       inscription, connexion, mot de passe, confirmation de l'email
 src/app/espace       espace professionnel
 src/app/admin        administration
 src/app/p            pages publiques scannées
-src/app/api          PDF, SVG, logo, vCard, webhook Stripe
+src/app/api          PDF, SVG, logo, vCard, webhook Stripe, cron
+.github/workflows/   sauvegarde quotidienne de la base
 tests/               e2e (Playwright) et contrôle d'impression
 ```

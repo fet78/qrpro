@@ -24,8 +24,12 @@ export async function rateLimit(scope: string, subject: string, maxProd: number,
   return true;
 }
 
-/** Adresse IP du client (en-têtes posés par Vercel / le proxy). Utilisée uniquement hachée. */
+/**
+ * Adresse IP du client. Utilisée uniquement hachée.
+ * Sur Netlify, seul « x-nf-client-connection-ip » est posé par la plateforme (un visiteur ne peut pas le falsifier) ;
+ * « x-real-ip » / « x-forwarded-for » servent ailleurs (autre hébergeur, proxy).
+ */
 export async function clientIp(): Promise<string> {
   const h = await headers();
-  return h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  return h.get("x-nf-client-connection-ip") ?? h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
 }
