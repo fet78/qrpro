@@ -14,10 +14,8 @@ const TTL_MS = 7 * 86400_000;
  */
 export async function sendVerificationEmail(userId: string, email: string): Promise<void> {
   const { token, hash } = newToken();
-  await db.$transaction([
-    db.emailVerification.deleteMany({ where: { userId } }),
-    db.emailVerification.create({ data: { tokenHash: hash, userId, email, expiresAt: new Date(Date.now() + TTL_MS) } }),
-  ]);
+  await db.emailVerification.deleteMany({ where: { userId } });
+  await db.emailVerification.create({ data: { tokenHash: hash, userId, email, expiresAt: new Date(Date.now() + TTL_MS) } });
   const link = `${appUrl()}/verifier-email/${token}`;
   const { brandName } = await getSettings();
   await sendEmail(
@@ -43,9 +41,10 @@ export async function confirmEmailToken(token: string): Promise<"ok" | "expired"
   if (!row) return "invalid";
   if (row.expiresAt < new Date()) return "expired";
   if (row.user.email !== row.email) return "invalid";
-  await db.$transaction([
-    db.user.update({ where: { id: row.userId }, data: { emailVerifiedAt: new Date() } }),
-    db.emailVerification.deleteMany({ where: { userId: row.userId } }),
-  ]);
+  // Le lien est consommé en une seule opération : deux ouvertures simultanées ne le valident qu'une fois.
+  const claimed = await db.emailVerification.deleteMany({ where: { id: row.id } });
+  if (claimed.count === 0) return "invalid";
+  await db.user.update({ where: { id: row.userId }, data: { emailVerifiedAt: new Date() } });
+  await db.emailVerification.deleteMany({ where: { userId: row.userId } });
   return "ok";
 }

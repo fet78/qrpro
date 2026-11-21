@@ -21,10 +21,8 @@ export async function resendVerification(): Promise<ActionResult> {
 export async function confirmEmailDev(): Promise<ActionResult> {
   if (!devVerificationLinksVisible()) return fail("Indisponible.");
   const user = await requirePro();
-  await db.$transaction([
-    db.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } }),
-    db.emailVerification.deleteMany({ where: { userId: user.id } }),
-  ]);
+  await db.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
+  await db.emailVerification.deleteMany({ where: { userId: user.id } });
   revalidatePath("/espace", "layout");
   return done("Adresse confirmée (mode développement).");
 }

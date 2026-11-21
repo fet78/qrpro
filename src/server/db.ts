@@ -39,7 +39,13 @@ function create(): PrismaClient {
       onConnectionError: (err) => console.error("[db] erreur de connexion :", err.message),
     },
   );
-  return new PrismaClient({ adapter, log: e.NODE_ENV === "development" ? ["warn", "error"] : ["error"] });
+  return new PrismaClient({
+    adapter,
+    log: e.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    // Avec une seule connexion par instance, une transaction peut devoir attendre qu'une requête voisine
+    // (même page, même fonction) libère la connexion : 10 s comme pour la connexion, au lieu de 2 s par défaut.
+    transactionOptions: { maxWait: 10_000 },
+  });
 }
 
 export const db: PrismaClient = (g.prisma ??= create());
