@@ -102,6 +102,7 @@ export default async function AdminOrder({ params }: { params: Promise<{ id: str
               ))}
               <div className="flex justify-between border-t border-line pt-2 font-semibold"><dt>Total TTC</dt><dd className="tabular-nums">{eurosExact(o.totalCents)}</dd></div>
               <div className="flex justify-between text-[13px]"><dt className="text-muted">Payée le</dt><dd>{dateFr(o.paidAt, true)}</dd></div>
+              {o.cgvAcceptedAt ? <div className="flex justify-between text-[13px]"><dt className="text-muted">CGV acceptées</dt><dd>{dateFr(o.cgvAcceptedAt, true)} (version {o.cgvVersion})</dd></div> : null}
               {o.paymentRef ? <div className="break-all text-[12px] text-muted">Réf. {o.paymentRef}</div> : null}
               {o.invoiceNumber ? <a href={`/api/orders/${o.id}/invoice`} className={`${buttonClass("secondary", "sm")} mt-2 w-full`}>Facture {o.invoiceNumber}</a> : null}
             </dl>

@@ -1,4 +1,5 @@
 import { getSettings } from "@/server/settings";
+import { CGV_VERSION } from "@/lib/legal";
 import { Fill, DraftNotice } from "../fill";
 
 export const metadata = { title: "Conditions générales" };
@@ -8,6 +9,7 @@ export default async function Terms() {
   return (
     <>
       <h1>Conditions générales d&apos;utilisation et de vente</h1>
+      <p className="text-[13px] text-muted">Version du {new Date(CGV_VERSION).toLocaleDateString("fr-FR", { dateStyle: "long" })}</p>
       <DraftNotice />
       <h2>1. Objet</h2>
       <p>

@@ -131,6 +131,7 @@ try {
   await a.fill("#billLine1", "3 rue du Test");
   await a.fill("#billPostal", "44000");
   await a.fill("#billCity", "Nantes");
+  await a.check('[data-testid="accept-cgv"]');
   await a.click('button:has-text("Payer 39,00")');
   await a.waitForURL(/\/espace\/commandes\/[a-z0-9]+\?simulation=1/, { timeout: 90000, waitUntil: "commit" });
   await a.click('button:has-text("Simuler le paiement")');
@@ -243,6 +244,7 @@ try {
   assert.match(await a.textContent("main"), /Votre offre est active/);
   assert.equal((await a.textContent('[data-testid="order-total"]')).replace(/\s/g, ""), "59,00€");
   await a.fill("#shipPhone", "0611223344");
+  await a.check('[data-testid="accept-cgv"]');
   await a.click('button:has-text("Payer 59,00")');
   await a.waitForURL(/simulation=1/, { timeout: 90000, waitUntil: "commit" });
   const printOrderUrl = a.url().split("?")[0];

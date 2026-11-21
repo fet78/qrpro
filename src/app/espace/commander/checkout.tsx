@@ -208,7 +208,15 @@ export function Checkout({
                 <div className="flex items-baseline justify-between border-t border-line pt-3"><dt className="font-semibold">Total à payer</dt><dd className="text-[26px] font-semibold tracking-tight tabular-nums" data-testid="order-total">{eurosExact(totalCents)}</dd></div>
               </dl>
             )}
-            <SubmitButton className="mt-4 h-12 w-full rounded-xl" size="lg" disabled={!canPay || nothingToBuy || blockedByDesign} pendingLabel="Redirection vers le paiement…">
+            <label className="mt-4 flex items-start gap-2.5 text-[13px] leading-snug">
+              <input type="checkbox" name="acceptCgv" required className="mt-0.5 h-4 w-4 flex-none accent-[rgb(var(--brand))]" data-testid="accept-cgv" />
+              <span>
+                J&apos;ai lu et j&apos;accepte les{" "}
+                <Link href="/cgv" target="_blank" className="link">conditions générales de vente</Link>.
+              </span>
+            </label>
+            <FieldError name="acceptCgv" />
+            <SubmitButton className="mt-3 h-12 w-full rounded-xl" size="lg" disabled={!canPay || nothingToBuy || blockedByDesign} pendingLabel="Redirection vers le paiement…">
               {nothingToBuy ? "Rien à payer" : `Payer ${eurosExact(totalCents)}`}
             </SubmitButton>
             <ul className="mt-4 space-y-1.5 text-[12.5px] text-muted">

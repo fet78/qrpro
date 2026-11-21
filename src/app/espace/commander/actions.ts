@@ -12,6 +12,7 @@ import { rateLimit } from "@/server/rate-limit";
 import { paymentSimulated } from "@/lib/env";
 import { bool, fail, str, zodErrors, type ActionResult } from "@/lib/action";
 import { quote, unitCents } from "@/lib/pricing";
+import { CGV_VERSION } from "@/lib/legal";
 import { FORMATS } from "@/lib/labels/formats";
 import type { LabelFormat, Prisma } from "@/generated/prisma/client";
 
@@ -27,6 +28,7 @@ const orderSchema = z
     billCity: z.string().trim().min(2, "Ville requise").max(80),
     billSiret: z.union([z.literal(""), z.string().trim().regex(/^\d{14}$/, "SIRET : 14 chiffres (ou laissez vide)")]),
     shipSame: z.boolean(),
+    acceptCgv: z.literal(true, { message: "Acceptez les conditions générales de vente pour commander" }),
     shipName: text(80),
     shipLine1: text(120),
     shipLine2: text(120),
@@ -52,7 +54,7 @@ export async function placeOrder(_: ActionResult, fd: FormData): Promise<ActionR
   const user = await requirePro();
   if (!paymentsAvailable()) return fail("Le paiement en ligne n'est pas encore activé. Contactez le support.");
   const keys = ["tierId", "billName", "billLine1", "billLine2", "billPostal", "billCity", "billSiret", "shipName", "shipLine1", "shipLine2", "shipPostal", "shipCity", "shipPhone"];
-  const parsed = orderSchema.safeParse({ ...Object.fromEntries(keys.map((k) => [k, str(fd, k)])), billSiret: str(fd, "billSiret").replace(/\s/g, ""), shipSame: bool(fd, "shipSame") });
+  const parsed = orderSchema.safeParse({ ...Object.fromEntries(keys.map((k) => [k, str(fd, k)])), billSiret: str(fd, "billSiret").replace(/\s/g, ""), shipSame: bool(fd, "shipSame"), acceptCgv: bool(fd, "acceptCgv") });
   if (!parsed.success) return zodErrors(parsed.error);
   const p = parsed.data;
   if (!(await rateLimit("order", user.businessId, 20, 3600))) return fail("Trop de commandes en peu de temps. Réessayez plus tard.");
@@ -100,6 +102,8 @@ export async function placeOrder(_: ActionResult, fd: FormData): Promise<ActionR
       totalCents,
       ...bill,
       ...(ship ?? {}),
+      cgvAcceptedAt: new Date(),
+      cgvVersion: CGV_VERSION,
       events: { create: { status: "EN_ATTENTE_PAIEMENT", note: "Commande créée" } },
     },
   });

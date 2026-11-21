@@ -323,6 +323,9 @@ model Order {
   lines           Json?
   /// La commande active l'offre QR Pro.
   includesActivation Boolean @default(false)
+  /// Preuve d'acceptation des CGV au moment de la commande (date et version du texte accepté).
+  cgvAcceptedAt   DateTime?
+  cgvVersion      String      @default("")
   /// Facture : numéro chronologique attribué au paiement (ex. FA-2026-0001).
   invoiceNumber   String?     @unique
   billName        String      @default("")

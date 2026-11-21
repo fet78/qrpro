@@ -51,6 +51,7 @@ try {
   await a.fill("#billLine1", "1 place du Test");
   await a.fill("#billPostal", "69003");
   await a.fill("#billCity", "Lyon");
+  await a.check('[data-testid="accept-cgv"]');
   await a.click('button:has-text("Payer")');
   await a.waitForURL(/simulation=1/, { waitUntil: "commit" });
   await a.click('button:has-text("Simuler le paiement")');
